@@ -13,3 +13,18 @@ build.log
 /config/common
 /config/source
 /.stage/
+
+# lb build generated manifests
+binary.modified_timestamps
+chroot.files
+chroot.packages.install
+chroot.packages.live
+koder-linux-amd64.contents
+koder-linux-amd64.files
+koder-linux-amd64.packages
+
+# lb config auto-generated hooks and lists
+/config/hooks/live/0010-disable-kexec-tools.hook.chroot
+/config/hooks/live/0050-disable-sysvinit-tmpfs.hook.chroot
+/config/hooks/normal/
+/config/package-lists/live.list.chroot
