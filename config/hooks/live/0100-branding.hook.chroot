@@ -1,0 +1,54 @@
+#!/bin/sh
+
+set -e
+
+SVG="/usr/share/koder-linux/koder_icon.svg"
+
+# Generate PNGs from SVG at various sizes
+for size in 16 22 32 48 64 128 256; do
+    rsvg-convert -w "$size" -h "$size" "$SVG" -o "/tmp/koder-${size}.png"
+done
+
+# Replace Debian emblems in hicolor icon theme
+for size in 16 22 32 48 64 128 256; do
+    target="/usr/share/icons/hicolor/${size}x${size}/emblems/emblem-debian.png"
+    if [ -d "$(dirname "$target")" ]; then
+        cp "/tmp/koder-${size}.png" "$target"
+    fi
+done
+
+# Replace desktop-base logos
+if [ -d /usr/share/desktop-base/debian-logos ]; then
+    cp "/tmp/koder-64.png" /usr/share/desktop-base/debian-logos/logo-64.png
+    cp "/tmp/koder-128.png" /usr/share/desktop-base/debian-logos/logo-128.png
+    cp "/tmp/koder-256.png" /usr/share/desktop-base/debian-logos/logo-256.png
+    cp "$SVG" /usr/share/desktop-base/debian-logos/logo.svg
+fi
+
+# Replace Plymouth theme icons (Trixie uses "ceratopsian")
+PLYMOUTH_DIR="/usr/share/plymouth/themes/ceratopsian"
+if [ -d "$PLYMOUTH_DIR" ]; then
+    cp "/tmp/koder-128.png" "${PLYMOUTH_DIR}/debian.png"
+    cp "/tmp/koder-128.png" "${PLYMOUTH_DIR}/logo.png"
+fi
+
+# Update icon caches
+if command -v gtk-update-icon-cache > /dev/null 2>&1; then
+    gtk-update-icon-cache -f /usr/share/icons/hicolor || true
+fi
+
+# Configure GDM logo
+GDM_CONF="/etc/gdm3/greeter.dconf-defaults"
+if [ -f "$GDM_CONF" ]; then
+    cat >> "$GDM_CONF" <<EOF
+
+# Koder Linux branding
+[org/gnome/login-screen]
+logo='/usr/share/koder-linux/koder_icon.svg'
+EOF
+fi
+
+# Clean up temporary PNGs
+rm -f /tmp/koder-*.png
+
+echo "Koder Linux branding applied."

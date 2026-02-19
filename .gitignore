@@ -1,0 +1,15 @@
+# live-build artifacts
+/.build/
+/binary/
+/cache/
+/chroot/
+*.iso
+build.log
+
+# lb config generated files
+/config/binary
+/config/bootstrap
+/config/chroot
+/config/common
+/config/source
+/.stage/

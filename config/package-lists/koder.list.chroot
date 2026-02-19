@@ -1,0 +1,20 @@
+# GNOME Desktop
+task-gnome-desktop
+gnome-tweaks
+gnome-terminal
+
+# Installer dependencies
+btrfs-progs
+parted
+dosfstools
+debootstrap
+arch-install-scripts
+wget
+curl
+pciutils
+sudo
+git
+
+# Branding tools (used by hook to generate icons from SVG)
+librsvg2-bin
+imagemagick

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -e
+
+lb config noauto \
+    --distribution trixie \
+    --architectures amd64 \
+    --archive-areas "main contrib non-free non-free-firmware" \
+    --binary-images iso-hybrid \
+    --debian-installer none \
+    --bootappend-live "boot=live components locales=pt_BR.UTF-8 keyboard-layouts=br" \
+    --iso-application "Koder Linux" \
+    --iso-volume "Koder Linux" \
+    --image-name koder-linux \
+    --bootloaders "syslinux,grub-efi" \
+    --security true \
+    --updates true \
+    "${@}"
