@@ -2,6 +2,8 @@
 task-gnome-desktop
 gnome-tweaks
 gnome-terminal
+gnome-shell-extensions
+gnome-shell-extension-manager
 
 # Installer dependencies
 btrfs-progs
@@ -18,3 +20,31 @@ git
 # Branding tools (used by hook to generate icons from SVG)
 librsvg2-bin
 imagemagick
+
+# Graphics
+gimp
+
+# Networking
+wireguard
+net-tools
+
+# Programming languages
+golang
+rustc
+cargo
+ruby
+python3
+python3-pip
+python3-venv
+
+# Remote desktop
+remmina
+remmina-plugin-rdp
+remmina-plugin-vnc
+remmina-plugin-exec
+remmina-plugin-kiosk
+remmina-plugin-python
+remmina-plugin-secret
+remmina-plugin-spice
+remmina-plugin-www
+remmina-plugin-x2go

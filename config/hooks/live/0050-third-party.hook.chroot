@@ -1,0 +1,39 @@
+#!/bin/sh
+
+set -e
+
+echo "Installing third-party packages..."
+
+# --- Google Chrome ---
+echo "Adding Google Chrome repository..."
+curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+    | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list
+
+# --- Visual Studio Code ---
+echo "Adding VSCode repository..."
+curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+    | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
+    > /etc/apt/sources.list.d/vscode.list
+
+# --- Crystal Lang ---
+echo "Adding Crystal repository..."
+curl -fsSL https://packagecloud.io/84codes/crystal/gpgkey \
+    | gpg --dearmor -o /usr/share/keyrings/crystal.gpg
+echo "deb [signed-by=/usr/share/keyrings/crystal.gpg] https://packagecloud.io/84codes/crystal/any/ any main" \
+    > /etc/apt/sources.list.d/crystal.list
+
+# --- Install ---
+apt-get update
+apt-get install -y --no-install-recommends \
+    google-chrome-stable \
+    code \
+    crystal
+
+# --- Cleanup ---
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+echo "Third-party packages installed."
