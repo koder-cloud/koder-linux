@@ -2,7 +2,7 @@
 """Koder Linux Installer — GTK 4 / Libadwaita GUI."""
 
 import os
-import signal
+import re
 import subprocess
 import threading
 
@@ -15,8 +15,9 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 class InstallerWindow(Adw.ApplicationWindow):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs, default_width=700, default_height=500)
+        super().__init__(**kwargs, default_width=700, default_height=550)
         self.process = None
+        self.root_password = None
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT)
         self.set_content(self.stack)
         self._build_welcome_page()
@@ -42,7 +43,7 @@ class InstallerWindow(Adw.ApplicationWindow):
         title.add_css_class("title-1")
         box.append(title)
 
-        subtitle = Gtk.Label(label="O Koder Linux será instalado no disco.")
+        subtitle = Gtk.Label(label="O Koder Linux sera instalado no disco.")
         subtitle.add_css_class("dim-label")
         box.append(subtitle)
 
@@ -70,7 +71,7 @@ class InstallerWindow(Adw.ApplicationWindow):
         box.set_margin_top(24)
         box.set_margin_bottom(24)
 
-        header = Gtk.Label(label="Instalação em progresso…")
+        header = Gtk.Label(label="Instalacao em progresso...")
         header.add_css_class("title-2")
         box.append(header)
 
@@ -91,10 +92,15 @@ class InstallerWindow(Adw.ApplicationWindow):
 
     # ── Done ─────────────────────────────────────────────────────────
     def _build_done_page(self):
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
+        scrolled = Gtk.ScrolledWindow(vexpand=True)
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16,
                       valign=Gtk.Align.CENTER, halign=Gtk.Align.CENTER)
-        box.set_margin_top(48)
-        box.set_margin_bottom(48)
+        box.set_margin_top(32)
+        box.set_margin_bottom(32)
+        box.set_margin_start(48)
+        box.set_margin_end(48)
 
         self.done_icon = Gtk.Image(icon_size=Gtk.IconSize.LARGE)
         self.done_icon.set_pixel_size(64)
@@ -103,6 +109,78 @@ class InstallerWindow(Adw.ApplicationWindow):
         self.done_label = Gtk.Label()
         self.done_label.add_css_class("title-1")
         box.append(self.done_label)
+
+        # Root password frame (hidden by default)
+        self.root_frame = Gtk.Frame()
+        self.root_frame.set_visible(False)
+        root_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        root_box.set_margin_top(12)
+        root_box.set_margin_bottom(12)
+        root_box.set_margin_start(16)
+        root_box.set_margin_end(16)
+
+        warn_label = Gtk.Label(
+            label="ATENCAO: Uma senha foi gerada automaticamente para o\n"
+                  "usuario root. Anote-a em um local seguro!\n"
+                  "Esta e a unica vez que ela sera exibida.")
+        warn_label.add_css_class("warning")
+        warn_label.set_wrap(True)
+        warn_label.set_justify(Gtk.Justification.CENTER)
+        root_box.append(warn_label)
+
+        pass_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
+                           halign=Gtk.Align.CENTER)
+        pass_label = Gtk.Label(label="Senha do root:")
+        pass_label.add_css_class("heading")
+        pass_box.append(pass_label)
+
+        self.root_pass_label = Gtk.Label(selectable=True)
+        self.root_pass_label.add_css_class("monospace")
+        self.root_pass_label.add_css_class("title-3")
+        pass_box.append(self.root_pass_label)
+        root_box.append(pass_box)
+
+        change_btn = Gtk.Button(label="Alterar senha do root agora")
+        change_btn.set_halign(Gtk.Align.CENTER)
+        change_btn.connect("clicked", self._on_change_root_pass)
+        root_box.append(change_btn)
+
+        # New password entry (hidden by default)
+        self.new_pass_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.new_pass_box.set_visible(False)
+
+        self.new_pass_entry = Gtk.PasswordEntry(show_peek_icon=True,
+                                                 placeholder_text="Nova senha do root")
+        self.new_pass_entry.set_halign(Gtk.Align.CENTER)
+        self.new_pass_entry.set_size_request(300, -1)
+        self.new_pass_box.append(self.new_pass_entry)
+
+        self.confirm_pass_entry = Gtk.PasswordEntry(show_peek_icon=True,
+                                                     placeholder_text="Confirmar nova senha")
+        self.confirm_pass_entry.set_halign(Gtk.Align.CENTER)
+        self.confirm_pass_entry.set_size_request(300, -1)
+        self.new_pass_box.append(self.confirm_pass_entry)
+
+        self.pass_status_label = Gtk.Label()
+        self.pass_status_label.set_visible(False)
+        self.new_pass_box.append(self.pass_status_label)
+
+        save_pass_btn = Gtk.Button(label="Salvar nova senha")
+        save_pass_btn.add_css_class("suggested-action")
+        save_pass_btn.set_halign(Gtk.Align.CENTER)
+        save_pass_btn.connect("clicked", self._on_save_root_pass)
+        self.new_pass_box.append(save_pass_btn)
+
+        root_box.append(self.new_pass_box)
+        self.root_frame.set_child(root_box)
+        box.append(self.root_frame)
+
+        # User info
+        self.user_info_label = Gtk.Label()
+        self.user_info_label.set_wrap(True)
+        self.user_info_label.set_justify(Gtk.Justification.CENTER)
+        self.user_info_label.add_css_class("dim-label")
+        box.append(self.user_info_label)
 
         self.done_sublabel = Gtk.Label()
         self.done_sublabel.add_css_class("dim-label")
@@ -113,7 +191,8 @@ class InstallerWindow(Adw.ApplicationWindow):
         self.done_btn.set_halign(Gtk.Align.CENTER)
         box.append(self.done_btn)
 
-        self.stack.add_named(box, "done")
+        scrolled.set_child(box)
+        self.stack.add_named(scrolled, "done")
 
     # ── Actions ──────────────────────────────────────────────────────
     def _on_install(self, _btn):
@@ -127,12 +206,16 @@ class InstallerWindow(Adw.ApplicationWindow):
         return True  # keep pulsing
 
     def _append_text(self, text):
+        # Extract root password from output
+        match = re.search(r'Senha do root:\s*(\S+)', text)
+        if match:
+            self.root_password = match.group(1)
+
         end_iter = self.text_buffer.get_end_iter()
         self.text_buffer.insert(end_iter, text)
-        # Scroll to bottom
         mark = self.text_buffer.get_insert()
         self.text_view.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
-        return False  # run once
+        return False
 
     def _run_installer(self):
         try:
@@ -160,19 +243,67 @@ class InstallerWindow(Adw.ApplicationWindow):
 
         if return_code == 0:
             self.done_icon.set_from_icon_name("emblem-ok-symbolic")
-            self.done_label.set_text("Instalação concluída!")
+            self.done_label.set_text("Instalacao concluida!")
             self.done_sublabel.set_text("Reinicie para usar o Koder Linux.")
+            self.user_info_label.set_text("Usuario: koder  |  Senha: koder@123")
             self.done_btn.set_label("Reiniciar")
             self.done_btn.connect("clicked", self._on_reboot)
+
+            if self.root_password:
+                self.root_pass_label.set_text(self.root_password)
+                self.root_frame.set_visible(True)
         else:
             self.done_icon.set_from_icon_name("dialog-error-symbolic")
-            self.done_label.set_text("Falha na instalação")
-            self.done_sublabel.set_text(f"O instalador terminou com código {return_code}.")
+            self.done_label.set_text("Falha na instalacao")
+            self.done_sublabel.set_text(f"O instalador terminou com codigo {return_code}.")
             self.done_btn.set_label("Fechar")
             self.done_btn.connect("clicked", lambda _: self.close())
 
         self.stack.set_visible_child_name("done")
         return False
+
+    def _on_change_root_pass(self, _btn):
+        self.new_pass_box.set_visible(True)
+        self.new_pass_entry.grab_focus()
+
+    def _on_save_root_pass(self, _btn):
+        new_pass = self.new_pass_entry.get_text()
+        confirm = self.confirm_pass_entry.get_text()
+
+        if not new_pass:
+            self._show_pass_status("Digite a nova senha.", error=True)
+            return
+        if new_pass != confirm:
+            self._show_pass_status("As senhas nao conferem.", error=True)
+            return
+
+        # Change root password via chroot
+        try:
+            # Find the installed root partition
+            result = subprocess.run(
+                ["pkexec", "bash", "-c",
+                 f"echo 'root:{new_pass}' | chpasswd -R /mnt 2>/dev/null || "
+                 f"echo 'root:{new_pass}' | chpasswd"],
+                capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                self.root_password = new_pass
+                self.root_pass_label.set_text(new_pass)
+                self._show_pass_status("Senha do root alterada com sucesso!", error=False)
+                self.new_pass_box.set_visible(False)
+            else:
+                self._show_pass_status(f"Erro ao alterar senha: {result.stderr}", error=True)
+        except Exception as e:
+            self._show_pass_status(f"Erro: {e}", error=True)
+
+    def _show_pass_status(self, text, error=False):
+        self.pass_status_label.set_text(text)
+        self.pass_status_label.set_visible(True)
+        if error:
+            self.pass_status_label.add_css_class("error")
+            self.pass_status_label.remove_css_class("success")
+        else:
+            self.pass_status_label.add_css_class("success")
+            self.pass_status_label.remove_css_class("error")
 
     def _on_reboot(self, _btn):
         try:

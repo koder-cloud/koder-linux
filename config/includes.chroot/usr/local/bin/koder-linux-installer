@@ -43,10 +43,9 @@ fi
 DISK1="${DISKS[0]}"
 OTHER_DISKS=("${DISKS[@]:1}")
 
-USER_NAME="rodrigo"
-USER_PASS="koder"
-ROOT_PASS="koder"
-HOSTNAME="note"
+USER_NAME="koder"
+USER_PASS="koder@123"
+HOSTNAME="koder"
 
 # Live filesystem source
 LIVE_ROOTFS=""
@@ -403,16 +402,22 @@ fi
 
 # --- Usuários ---
 echo "[INFO] Configurando usuários..."
-# Remove live user if exists
+# Remove live user if exists (live-config may create "koder" or "user")
 userdel -r user 2>/dev/null || true
 
-echo "root:$ROOT_PASS" | chpasswd
+# Generate random root password
+ROOT_PASS=\$(tr -dc 'A-Za-z0-9!@#%&*' < /dev/urandom | head -c 16)
+echo "root:\$ROOT_PASS" | chpasswd
+
 if ! id "$USER_NAME" &>/dev/null; then
   useradd -m -G sudo,video,render,plugdev,netdev -s /bin/bash "$USER_NAME"
+else
+  usermod -aG sudo "$USER_NAME"
 fi
 echo "$USER_NAME:$USER_PASS" | chpasswd
-echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER_NAME
-chmod 0440 /etc/sudoers.d/$USER_NAME
+
+# Save root password to show to user at the end
+echo "\$ROOT_PASS" > /tmp/.root_pass_generated
 
 # --- User avatar (Koder icon) ---
 mkdir -p /var/lib/AccountsService/users
@@ -488,9 +493,38 @@ fi
 
 chroot /mnt /setup_internal.sh
 
+# Retrieve generated root password
+ROOT_PASS_GENERATED=""
+if [ -f /mnt/tmp/.root_pass_generated ]; then
+  ROOT_PASS_GENERATED=$(cat /mnt/tmp/.root_pass_generated)
+  rm -f /mnt/tmp/.root_pass_generated
+fi
+
 log "Limpando..."
 rm -f /mnt/setup_internal.sh
 rm -f /mnt/usr/local/bin/koder-linux-installer
 
 umount -R /mnt
-log "Instalação Finalizada!"
+
+# ==============================================================================
+# PASSO 6: EXIBIR SENHA DO ROOT
+# ==============================================================================
+echo ""
+echo "============================================================"
+echo "  INSTALAÇÃO CONCLUÍDA COM SUCESSO!"
+echo "============================================================"
+echo ""
+echo "  Usuário: koder"
+echo "  Senha:   koder@123"
+echo ""
+echo "============================================================"
+echo "  ATENÇÃO — SENHA DO ROOT GERADA AUTOMATICAMENTE"
+echo "============================================================"
+echo ""
+echo "  Senha do root: $ROOT_PASS_GENERATED"
+echo ""
+echo "  IMPORTANTE: Anote esta senha em um local seguro!"
+echo "  Esta é a única vez que ela será exibida."
+echo "  Sem ela, você não conseguirá acessar o sistema como root."
+echo ""
+echo "============================================================"

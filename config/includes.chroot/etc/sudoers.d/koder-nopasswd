@@ -1,0 +1,2 @@
+# Descomente a linha abaixo para permitir que o usuario koder use sudo sem digitar senha:
+#koder ALL=(ALL) NOPASSWD: ALL

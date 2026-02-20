@@ -59,10 +59,12 @@ dpkg-reconfigure -f noninteractive tzdata
 # --- Console font ---
 setupcon || true
 
-# --- Enable services ---
+# --- Enable/disable services ---
 echo "Enabling services..."
 systemctl enable ocean-blue-tty.service || true
 systemctl enable snapd || true
+systemctl disable ssh.service || true
+systemctl disable sshd.service || true
 
 # --- Flatpak + Flathub ---
 echo "Configuring Flatpak..."
