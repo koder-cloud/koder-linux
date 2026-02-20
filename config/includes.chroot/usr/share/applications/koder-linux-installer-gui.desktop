@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar Koder Linux
+Comment=Instalar o Koder Linux no disco
+Exec=koder-linux-installer-gui
+Icon=/usr/share/koder-linux/koder_icon.svg
+Terminal=false
+Categories=System;

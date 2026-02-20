@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""Koder Linux Installer — GTK 4 / Libadwaita GUI."""
+
+import os
+import signal
+import subprocess
+import threading
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+
+
+class InstallerWindow(Adw.ApplicationWindow):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, default_width=700, default_height=500)
+        self.process = None
+        self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT)
+        self.set_content(self.stack)
+        self._build_welcome_page()
+        self._build_progress_page()
+        self._build_done_page()
+        self.stack.set_visible_child_name("welcome")
+
+    # ── Welcome ──────────────────────────────────────────────────────
+    def _build_welcome_page(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
+                      valign=Gtk.Align.CENTER, halign=Gtk.Align.CENTER)
+        box.set_margin_top(48)
+        box.set_margin_bottom(48)
+
+        icon_path = "/usr/share/koder-linux/koder_icon.svg"
+        if os.path.exists(icon_path):
+            picture = Gtk.Picture.new_for_filename(icon_path)
+            picture.set_size_request(128, 128)
+            picture.set_content_fit(Gtk.ContentFit.CONTAIN)
+            box.append(picture)
+
+        title = Gtk.Label(label="Instalar o Koder Linux")
+        title.add_css_class("title-1")
+        box.append(title)
+
+        subtitle = Gtk.Label(label="O Koder Linux será instalado no disco.")
+        subtitle.add_css_class("dim-label")
+        box.append(subtitle)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
+                          halign=Gtk.Align.CENTER)
+        btn_box.set_margin_top(12)
+
+        cancel_btn = Gtk.Button(label="Cancelar")
+        cancel_btn.connect("clicked", lambda _: self.close())
+        btn_box.append(cancel_btn)
+
+        install_btn = Gtk.Button(label="Instalar")
+        install_btn.add_css_class("suggested-action")
+        install_btn.connect("clicked", self._on_install)
+        btn_box.append(install_btn)
+
+        box.append(btn_box)
+        self.stack.add_named(box, "welcome")
+
+    # ── Progress ─────────────────────────────────────────────────────
+    def _build_progress_page(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+
+        header = Gtk.Label(label="Instalação em progresso…")
+        header.add_css_class("title-2")
+        box.append(header)
+
+        self.progress_bar = Gtk.ProgressBar()
+        self.progress_bar.set_show_text(False)
+        box.append(self.progress_bar)
+
+        scrolled = Gtk.ScrolledWindow(vexpand=True)
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+
+        self.text_view = Gtk.TextView(editable=False, cursor_visible=False,
+                                      monospace=True, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        self.text_buffer = self.text_view.get_buffer()
+        scrolled.set_child(self.text_view)
+        box.append(scrolled)
+
+        self.stack.add_named(box, "progress")
+
+    # ── Done ─────────────────────────────────────────────────────────
+    def _build_done_page(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24,
+                      valign=Gtk.Align.CENTER, halign=Gtk.Align.CENTER)
+        box.set_margin_top(48)
+        box.set_margin_bottom(48)
+
+        self.done_icon = Gtk.Image(icon_size=Gtk.IconSize.LARGE)
+        self.done_icon.set_pixel_size(64)
+        box.append(self.done_icon)
+
+        self.done_label = Gtk.Label()
+        self.done_label.add_css_class("title-1")
+        box.append(self.done_label)
+
+        self.done_sublabel = Gtk.Label()
+        self.done_sublabel.add_css_class("dim-label")
+        box.append(self.done_sublabel)
+
+        self.done_btn = Gtk.Button()
+        self.done_btn.add_css_class("suggested-action")
+        self.done_btn.set_halign(Gtk.Align.CENTER)
+        box.append(self.done_btn)
+
+        self.stack.add_named(box, "done")
+
+    # ── Actions ──────────────────────────────────────────────────────
+    def _on_install(self, _btn):
+        self.stack.set_visible_child_name("progress")
+        self._pulse_id = GLib.timeout_add(100, self._pulse)
+        thread = threading.Thread(target=self._run_installer, daemon=True)
+        thread.start()
+
+    def _pulse(self):
+        self.progress_bar.pulse()
+        return True  # keep pulsing
+
+    def _append_text(self, text):
+        end_iter = self.text_buffer.get_end_iter()
+        self.text_buffer.insert(end_iter, text)
+        # Scroll to bottom
+        mark = self.text_buffer.get_insert()
+        self.text_view.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
+        return False  # run once
+
+    def _run_installer(self):
+        try:
+            self.process = subprocess.Popen(
+                ["pkexec", "koder-linux-installer"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            for line in self.process.stdout:
+                GLib.idle_add(self._append_text, line)
+            self.process.wait()
+            rc = self.process.returncode
+        except Exception as e:
+            GLib.idle_add(self._append_text, f"\nErro: {e}\n")
+            rc = 1
+
+        GLib.idle_add(self._show_done, rc)
+
+    def _show_done(self, return_code):
+        if hasattr(self, "_pulse_id"):
+            GLib.source_remove(self._pulse_id)
+        self.progress_bar.set_fraction(1.0)
+
+        if return_code == 0:
+            self.done_icon.set_from_icon_name("emblem-ok-symbolic")
+            self.done_label.set_text("Instalação concluída!")
+            self.done_sublabel.set_text("Reinicie para usar o Koder Linux.")
+            self.done_btn.set_label("Reiniciar")
+            self.done_btn.connect("clicked", self._on_reboot)
+        else:
+            self.done_icon.set_from_icon_name("dialog-error-symbolic")
+            self.done_label.set_text("Falha na instalação")
+            self.done_sublabel.set_text(f"O instalador terminou com código {return_code}.")
+            self.done_btn.set_label("Fechar")
+            self.done_btn.connect("clicked", lambda _: self.close())
+
+        self.stack.set_visible_child_name("done")
+        return False
+
+    def _on_reboot(self, _btn):
+        try:
+            subprocess.Popen(["pkexec", "reboot"])
+        except Exception:
+            pass
+        self.close()
+
+
+class InstallerApp(Adw.Application):
+    def __init__(self):
+        super().__init__(application_id="com.koder.installer",
+                         flags=Gio.ApplicationFlags.FLAGS_NONE)
+
+    def do_activate(self):
+        win = InstallerWindow(application=self)
+        win.present()
+
+
+def main():
+    app = InstallerApp()
+    app.run(None)
+
+
+if __name__ == "__main__":
+    main()
