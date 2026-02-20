@@ -48,7 +48,31 @@ logo='/usr/share/koder-linux/koder_icon.svg'
 EOF
 fi
 
-# Recompile GSettings schemas (picks up koder overrides)
+# --- Locale & Timezone ---
+echo "Configuring locale and timezone..."
+sed -i 's/# pt_BR.UTF-8/pt_BR.UTF-8/' /etc/locale.gen
+locale-gen
+echo "LANG=pt_BR.UTF-8" > /etc/default/locale
+ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
+dpkg-reconfigure -f noninteractive tzdata
+
+# --- Console font ---
+setupcon || true
+
+# --- Enable services ---
+echo "Enabling services..."
+systemctl enable ocean-blue-tty.service || true
+systemctl enable snapd || true
+
+# --- Flatpak + Flathub ---
+echo "Configuring Flatpak..."
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+
+# --- dconf update ---
+echo "Updating dconf database..."
+dconf update || true
+
+# --- Recompile GSettings schemas (picks up koder overrides + alt-tab extension) ---
 if command -v glib-compile-schemas > /dev/null 2>&1; then
     glib-compile-schemas /usr/share/glib-2.0/schemas || true
 fi

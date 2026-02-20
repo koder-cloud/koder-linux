@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Fix mixed refresh rates in GNOME monitors.xml to prevent Wayland protocol errors.
+On hybrid NVIDIA laptops, having the internal eDP panel at 240Hz while external
+monitors run at 60Hz causes 'Error 71 (Protocol error) dispatching to Wayland display'
+when moving or maximizing windows across monitors.
+This script caps the eDP refresh rate to ~60Hz only in configurations that also
+include external monitors running at lower rates."""
+import re, os, sys, shutil
+
+path = os.path.expanduser("~/.config/monitors.xml")
+if not os.path.exists(path):
+    sys.exit(0)
+
+with open(path) as f:
+    content = f.read()
+
+original = content
+for config_m in re.finditer(r"<configuration>.*?</configuration>", content, re.DOTALL):
+    config = config_m.group()
+    edp_high = []
+    has_ext_low = False
+    for mon_m in re.finditer(r"<monitor>.*?</monitor>", config, re.DOTALL):
+        mon = mon_m.group()
+        conn_m = re.search(r"<connector>([^<]+)</connector>", mon)
+        rate_m = re.search(r"<rate>([^<]+)</rate>", mon)
+        if not conn_m or not rate_m:
+            continue
+        conn = conn_m.group(1)
+        try:
+            rate = float(rate_m.group(1))
+        except (ValueError, TypeError):
+            continue
+        if conn.startswith("eDP") and rate > 120:
+            edp_high.append((mon, rate_m.group(0)))
+        elif not conn.startswith("eDP") and rate < 120:
+            has_ext_low = True
+    if has_ext_low and edp_high:
+        for mon_text, old_rate_tag in edp_high:
+            new_mon = mon_text.replace(old_rate_tag, "<rate>59.954</rate>")
+            content = content.replace(mon_text, new_mon, 1)
+
+if content != original:
+    shutil.copy2(path, path + ".bak")
+    with open(path, "w") as f:
+        f.write(content)

@@ -4,6 +4,19 @@ gnome-tweaks
 gnome-terminal
 gnome-shell-extensions
 gnome-shell-extension-manager
+dconf-editor
+
+# Boot & firmware
+linux-headers-amd64
+grub-efi-amd64
+shim-signed
+firmware-linux
+firmware-iwlwifi
+firmware-realtek
+intel-microcode
+plymouth
+plymouth-themes
+nvidia-detect
 
 # Installer dependencies
 btrfs-progs
@@ -23,6 +36,7 @@ imagemagick
 
 # Editors
 vim
+neovim
 
 # Graphics
 gimp
@@ -30,6 +44,15 @@ gimp
 # Networking
 wireguard
 net-tools
+dnsutils
+nmap
+htop
+
+# App stores
+flatpak
+gnome-software-plugin-flatpak
+snapd
+gnome-software-plugin-snap
 
 # Programming languages
 golang

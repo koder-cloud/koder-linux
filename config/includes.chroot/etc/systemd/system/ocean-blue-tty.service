@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply Ocean Blue color scheme to TTY consoles
+After=systemd-vconsole-setup.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/set-ocean-blue-tty.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

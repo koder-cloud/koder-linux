@@ -25,12 +25,50 @@ curl -fsSL https://packagecloud.io/84codes/crystal/gpgkey \
 echo "deb [signed-by=/usr/share/keyrings/crystal.gpg] https://packagecloud.io/84codes/crystal/any/ any main" \
     > /etc/apt/sources.list.d/crystal.list
 
+# --- Node.js 22 LTS ---
+echo "Adding Node.js 22 LTS repository..."
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+
+# --- Crush AI (Charmbracelet) ---
+echo "Adding Charm repository..."
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://repo.charm.sh/apt/gpg.key | gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" \
+    > /etc/apt/sources.list.d/charm.list
+
 # --- Install ---
 apt-get update
 apt-get install -y --no-install-recommends \
     google-chrome-stable \
     code \
-    crystal
+    crystal \
+    nodejs \
+    crush
+
+# --- npm global packages (AI CLI tools) ---
+echo "Installing AI CLI tools via npm..."
+npm install -g @google/gemini-cli @openai/codex @kilocode/cli cline
+
+# --- Alt-Tab Current Monitor GNOME extension ---
+echo "Installing Alt-Tab Current Monitor extension..."
+cd /tmp
+git clone https://github.com/esauvisky/alt-tab-current-monitor.git alt-tab-ext
+cd alt-tab-ext
+npm install
+npx tsc
+glib-compile-schemas schemas
+mkdir -p dist
+cp -r schemas dist/
+cp metadata.json dist/
+
+EXTENSION_DIR="/usr/share/gnome-shell/extensions/alt-tab-current-monitor@esauvisky.github.io"
+mkdir -p "$EXTENSION_DIR"
+cp -r dist/* "$EXTENSION_DIR/"
+
+# Schema global
+cp schemas/org.gnome.shell.extensions.alt-tab-current-monitor.gschema.xml /usr/share/glib-2.0/schemas/
+cd /
+rm -rf /tmp/alt-tab-ext
 
 # --- Cleanup ---
 apt-get clean

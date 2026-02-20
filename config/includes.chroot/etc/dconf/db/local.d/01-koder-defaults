@@ -1,0 +1,12 @@
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
+gtk-theme='Adwaita-dark'
+
+[org/gnome/desktop/input-sources]
+sources=[('xkb', 'br')]
+
+[org/gnome/shell]
+enabled-extensions=['alt-tab-current-monitor@esauvisky.github.io']
+
+[org/gnome/shell/extensions/alt-tab-current-monitor]
+use-mouse-pointer-monitor=false

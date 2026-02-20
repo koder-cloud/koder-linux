@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # ==============================================================================
-# SCRIPT DE INSTALAÇÃO DEBIAN TRIXIE - VERSÃO FINAL (v8)
-# Adição: Instalação de ferramentas de IA (Claude Code, Gemini CLI,
-#          OpenAI Codex, Kilo Code, Crush AI, Cline AI).
+# KODER LINUX INSTALLER — Clone-based installation
+# Clones the live filesystem to disk instead of debootstrap.
+# All packages and configurations from the ISO are preserved.
 # ==============================================================================
 
 set -e
@@ -33,8 +33,9 @@ if [ "$EUID" -ne 0 ]; then
   error "Este script precisa ser executado como root."
 fi
 
-# Variáveis
-# Detecta discos automaticamente (qualquer quantidade)
+# ==============================================================================
+# VARIÁVEIS
+# ==============================================================================
 mapfile -t DISKS < <(lsblk -ndo NAME,TYPE | awk '$2=="disk"{print "/dev/"$1}')
 if [ ${#DISKS[@]} -lt 1 ]; then
   error "Nenhum disco detectado via lsblk."
@@ -49,6 +50,23 @@ HOSTNAME="note"
 WIFI_SSID="crescer.diretoria"
 WIFI_PASS="c.wifi.senha"
 
+# Live filesystem source
+LIVE_ROOTFS=""
+for candidate in /run/live/rootfs/filesystem.squashfs /lib/live/mount/rootfs/filesystem.squashfs; do
+  if [ -d "$(dirname "$candidate")" ]; then
+    # Find the actual mounted rootfs
+    LIVE_ROOTFS="/lib/live/mount/rootfs/filesystem.squashfs"
+    break
+  fi
+done
+# Fallback: use the running root filesystem
+LIVE_SOURCE="/lib/live/mount/rootfs/filesystem.squashfs"
+if [ -d "$LIVE_SOURCE" ]; then
+  LIVE_ROOT="$LIVE_SOURCE"
+else
+  LIVE_ROOT="/"
+fi
+
 # ==============================================================================
 # PASSO 0: PREPARAÇÃO
 # ==============================================================================
@@ -59,7 +77,7 @@ umount -R /mnt 2>/dev/null || true
 
 # Desmontagem forçada
 for drive in "${DISKS[@]}"; do
-    mounts=$(lsblk -n -o MOUNTPOINT $drive | grep -v "^$" || true)
+    mounts=$(lsblk -n -o MOUNTPOINT "$drive" | grep -v "^$" || true)
     if [ -n "$mounts" ]; then
         for m in $mounts; do
             log "Desmontando $m..."
@@ -70,16 +88,9 @@ done
 sleep 1
 
 # ==============================================================================
-# PASSO 1: FERRAMENTAS DO LIVE CD
+# PASSO 1: DETECÇÃO DE GPU
 # ==============================================================================
-log "Atualizando ferramentas de instalação..."
-rm -rf /var/lib/apt/lists/*
-apt-get clean
-apt-get update || true
-apt-get install -y --fix-missing debootstrap btrfs-progs parted dosfstools arch-install-scripts wget curl pciutils
-apt-get install -y --fix-missing nvidia-detect || true
-
-# Detecta GPU
+log "Detectando hardware..."
 HAS_NVIDIA=0
 HAS_HYBRID=0
 NVIDIA_DRIVER_PKG=""
@@ -122,15 +133,15 @@ sleep 2
 log "Criando partições..."
 # Drive 1: EFI + BTRFS
 parted -s "$DISK1" mklabel gpt
-parted -s "$DISK1" mkpart "DEBIAN_EFI" fat32 1MiB 513MiB
+parted -s "$DISK1" mkpart "KODER_EFI" fat32 1MiB 513MiB
 parted -s "$DISK1" set 1 esp on
-parted -s "$DISK1" mkpart "DEBIAN_ROOT_1" btrfs 513MiB 100%
+parted -s "$DISK1" mkpart "KODER_ROOT_1" btrfs 513MiB 100%
 
 # Demais drives: BTRFS
 idx=2
 for drive in "${OTHER_DISKS[@]}"; do
     parted -s "$drive" mklabel gpt
-    parted -s "$drive" mkpart "DEBIAN_ROOT_${idx}" btrfs 1MiB 100%
+    parted -s "$drive" mkpart "KODER_ROOT_${idx}" btrfs 1MiB 100%
     idx=$((idx + 1))
 done
 
@@ -142,8 +153,8 @@ sleep 2
 log "Configurando BTRFS..."
 EFI_PART="${DISK1}$(part_suffix "$DISK1")1"
 ROOT1_PART="${DISK1}$(part_suffix "$DISK1")2"
-mkfs.fat -F32 -n DEBIAN_EFI "$EFI_PART"
-mkfs.btrfs -f -L DEBIAN_ROOT "$ROOT1_PART"
+mkfs.fat -F32 -n KODER_EFI "$EFI_PART"
+mkfs.btrfs -f -L KODER_ROOT "$ROOT1_PART"
 
 # RAID Setup
 mount "$ROOT1_PART" /mnt
@@ -170,70 +181,64 @@ mkdir -p /mnt/boot/efi
 mount "$EFI_PART" /mnt/boot/efi
 
 # ==============================================================================
-# PASSO 3: DEBOOTSTRAP
+# PASSO 3: CLONAR SISTEMA LIVE
 # ==============================================================================
-log "Instalando sistema base..."
-debootstrap --arch amd64 trixie /mnt http://deb.debian.org/debian
+log "Clonando sistema live para o disco..."
+rsync -aHAXx --info=progress2 \
+    --exclude='/dev/*' \
+    --exclude='/proc/*' \
+    --exclude='/sys/*' \
+    --exclude='/tmp/*' \
+    --exclude='/run/*' \
+    --exclude='/mnt/*' \
+    --exclude='/media/*' \
+    --exclude='/lost+found' \
+    --exclude='/swapfile' \
+    --exclude='/lib/live' \
+    --exclude='/etc/fstab' \
+    --exclude='/etc/hostname' \
+    --exclude='/etc/hosts' \
+    --exclude='/etc/machine-id' \
+    --exclude='/var/lib/dbus/machine-id' \
+    / /mnt/
+
+# Create necessary directories
+mkdir -p /mnt/{dev,proc,sys,tmp,run,mnt,media}
+chmod 1777 /mnt/tmp
 
 # ==============================================================================
-# PASSO 4: CONFIGURAÇÃO INTERNA
+# PASSO 4: CONFIGURAÇÃO DO SISTEMA INSTALADO
 # ==============================================================================
 log "Gerando fstab..."
 genfstab -U /mnt >> /mnt/etc/fstab
 
-log "Criando script interno..."
-cat <<EOF > /mnt/setup_internal.sh
+log "Criando script de configuração interna..."
+cat <<CHROOT_SCRIPT > /mnt/setup_internal.sh
 #!/bin/bash
 set -e
 
 export DEBIAN_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
 
-# Repositórios
+# --- Machine ID ---
+systemd-machine-id-setup
+
+# --- Hostname ---
+echo "$HOSTNAME" > /etc/hostname
+echo "127.0.0.1 localhost" > /etc/hosts
+echo "127.0.1.1 $HOSTNAME" >> /etc/hosts
+
+# --- Repositórios (garantir que estão completos) ---
 cat <<APT > /etc/apt/sources.list
 deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
 deb http://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
 deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
 APT
 
-rm -rf /var/lib/apt/lists/*
+# --- Remove live-boot packages (not needed on installed system) ---
 apt-get update
-
-# Locales & Time
-apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" locales console-setup
-sed -i 's/# pt_BR.UTF-8/pt_BR.UTF-8/' /etc/locale.gen
-locale-gen
-echo "LANG=pt_BR.UTF-8" > /etc/default/locale
-ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
-dpkg-reconfigure -f noninteractive tzdata
-
-# Teclado
-cat <<KBD > /etc/default/keyboard
-XKBMODEL="pc105"
-XKBLAYOUT="br"
-XKBVARIANT=""
-XKBOPTIONS=""
-BACKSPACE="guess"
-KBD
-
-# Fonte TTY: Terminus 32x16 (HiDPI)
-sed -i 's/^FONTFACE=.*/FONTFACE="Terminus"/' /etc/default/console-setup
-sed -i 's/^FONTSIZE=.*/FONTSIZE="32x16"/' /etc/default/console-setup
-setupcon
-
-# Hostname
-echo "$HOSTNAME" > /etc/hostname
-echo "127.0.0.1 localhost" > /etc/hosts
-echo "127.0.1.1 $HOSTNAME" >> /etc/hosts
-
-# --- PACOTES PRINCIPAIS (KERNEL + GRUB + FIRMWARE) ---
-# ADICIONADO: grub-efi-amd64 shim-signed
-apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
-    linux-image-amd64 linux-headers-amd64 btrfs-progs \
-    grub-efi-amd64 shim-signed \
-    network-manager firmware-linux firmware-iwlwifi firmware-realtek intel-microcode \
-    sudo curl wget vim neovim git task-gnome-desktop plymouth plymouth-themes \
-    flatpak gnome-software-plugin-flatpak snapd gnome-software-plugin-snap dconf-editor
+apt-get remove -y --purge live-boot live-config live-config-systemd 2>/dev/null || true
+apt-get autoremove -y || true
 
 # --- NVIDIA (auto-detect) ---
 HAS_NVIDIA=$HAS_NVIDIA
@@ -242,82 +247,66 @@ NVIDIA_DRIVER_PKG="$NVIDIA_DRIVER_PKG"
 NVIDIA_GSP_PKG="$NVIDIA_GSP_PKG"
 NVIDIA_EXTRA_PKGS="$NVIDIA_EXTRA_PKGS"
 
-if [ "$HAS_NVIDIA" -eq 1 ]; then
-  # Adiciona repositório NVIDIA CUDA para obter driver mais recente (590+)
+if [ "\$HAS_NVIDIA" -eq 1 ]; then
   echo "[INFO] Adicionando repositório NVIDIA CUDA..."
   wget -qO /tmp/cuda-keyring.deb https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/cuda-keyring_1.1-1_all.deb
   dpkg -i /tmp/cuda-keyring.deb
   rm -f /tmp/cuda-keyring.deb
   apt-get update
 
-  echo "[INFO] NVIDIA detectado. Instalando: $NVIDIA_DRIVER_PKG $NVIDIA_GSP_PKG $NVIDIA_EXTRA_PKGS nvidia-vaapi-driver"
+  echo "[INFO] NVIDIA detectado. Instalando: \$NVIDIA_DRIVER_PKG \$NVIDIA_GSP_PKG \$NVIDIA_EXTRA_PKGS nvidia-vaapi-driver"
   apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
-    $NVIDIA_DRIVER_PKG $NVIDIA_GSP_PKG $NVIDIA_EXTRA_PKGS nvidia-vaapi-driver
-  if [ "$HAS_HYBRID" -eq 1 ]; then
+    \$NVIDIA_DRIVER_PKG \$NVIDIA_GSP_PKG \$NVIDIA_EXTRA_PKGS nvidia-vaapi-driver
+
+  if [ "\$HAS_HYBRID" -eq 1 ]; then
     systemctl enable switcheroo-control || true
   fi
 
-  # Configura VA-API para usar NVDEC (decodificação de vídeo por hardware via NVIDIA)
-  cat >> /home/$USER_NAME/.bashrc << 'VAAPI_EOF'
-
+  # VA-API NVIDIA config (will be added to user bashrc later)
+  cat > /etc/profile.d/nvidia-vaapi.sh << 'VAAPI_EOF'
 # VA-API NVIDIA (NVDEC via nvidia-vaapi-driver)
 export LIBVA_DRIVER_NAME=nvidia
 export NVD_BACKEND=direct
 for _node in /dev/dri/renderD*; do
-  if udevadm info "$_node" 2>/dev/null | grep -q "ID_PATH=pci-.*:01:00.0"; then
-    export NVD_GPU="$_node"
+  if udevadm info "\$_node" 2>/dev/null | grep -q "ID_PATH=pci-.*:01:00.0"; then
+    export NVD_GPU="\$_node"
     break
   fi
 done
 unset _node
 VAAPI_EOF
-  echo "[INFO] VA-API configurado para NVDEC via nvidia-vaapi-driver"
 
-  # --- Módulos NVIDIA no initramfs (necessário para monitores externos via dock USB-C/HDMI) ---
-  # Sem isso, o Mutter dá timeout ao abrir /dev/dri/card1 (GPU NVIDIA) durante o login,
-  # impedindo que monitores conectados via GPU secundária sejam reconhecidos.
-
-  # Hook para copiar os módulos NVIDIA para o initramfs
-  # Suporta módulos do repositório Debian (nvidia-current*) e NVIDIA (nvidia*)
+  # NVIDIA initramfs hook
   cat > /etc/initramfs-tools/hooks/nvidia << 'NVHOOK'
 #!/bin/sh
 PREREQ=""
-prereqs() { echo "$PREREQ"; }
-case $1 in prereqs) prereqs; exit 0;; esac
+prereqs() { echo "\$PREREQ"; }
+case \$1 in prereqs) prereqs; exit 0;; esac
 . /usr/share/initramfs-tools/hook-functions
-KVER="${version}"
+KVER="\${version}"
 for mod in nvidia nvidia-modeset nvidia-drm nvidia-current nvidia-current-modeset nvidia-current-drm; do
-    SRC="/usr/lib/modules/${KVER}/updates/dkms/${mod}.ko.xz"
-    if [ -f "$SRC" ]; then
-        DEST="${DESTDIR}/usr/lib/modules/${KVER}/updates/dkms/${mod}.ko.xz"
-        mkdir -p "$(dirname "$DEST")"
-        cp "$SRC" "$DEST"
+    SRC="/usr/lib/modules/\${KVER}/updates/dkms/\${mod}.ko.xz"
+    if [ -f "\$SRC" ]; then
+        DEST="\${DESTDIR}/usr/lib/modules/\${KVER}/updates/dkms/\${mod}.ko.xz"
+        mkdir -p "\$(dirname "\$DEST")"
+        cp "\$SRC" "\$DEST"
     fi
 done
-manual_add_modules drm
-manual_add_modules drm_kms_helper
-manual_add_modules ttm
-manual_add_modules drm_ttm_helper
-manual_add_modules video
-manual_add_modules wmi
-mkdir -p "${DESTDIR}/etc/modprobe.d"
+manual_add_modules drm drm_kms_helper ttm drm_ttm_helper video wmi
+mkdir -p "\${DESTDIR}/etc/modprobe.d"
 for f in /etc/modprobe.d/nvidia*.conf; do
-    [ -f "$f" ] && cp "$f" "${DESTDIR}/etc/modprobe.d/"
+    [ -f "\$f" ] && cp "\$f" "\${DESTDIR}/etc/modprobe.d/"
 done
 NVHOOK
   chmod +x /etc/initramfs-tools/hooks/nvidia
 
-  # Garante carregamento dos módulos no boot via initramfs
+  # Modules no initramfs
   for mod_name in nvidia nvidia-modeset nvidia-drm; do
     grep -qxF "\$mod_name" /etc/initramfs-tools/modules 2>/dev/null || echo "\$mod_name" >> /etc/initramfs-tools/modules
   done
 
-  echo "[INFO] Hook e módulos NVIDIA adicionados ao initramfs"
-
-  # Garante nvidia-drm modeset=1 e fbdev=1 via modprobe.d
+  # modprobe configs
   echo "options nvidia-drm modeset=1 fbdev=1" > /etc/modprobe.d/nvidia-drm.conf
-
-  # Blacklist nouveau e opções de power management NVIDIA
   cat > /etc/modprobe.d/nvidia.conf << 'NVMODCONF'
 blacklist nouveau
 options nvidia NVreg_TemporaryFilePath=/var/tmp
@@ -325,49 +314,30 @@ options nvidia NVreg_EnableS0ixPowerManagement=1
 options nvidia NVreg_PreserveVideoMemoryAllocations=1
 NVMODCONF
 
-  # Habilita nvidia-persistenced para manter o estado da GPU ativa
   systemctl enable nvidia-persistenced || true
 
-  # --- Serviços para monitores externos via dock USB-C/HDMI ---
-  #
-  # Problema 1: o nvidia-drm carrega antes do dock USB-C negociar DP Alt Mode,
-  # resultando em conectores sem modos (EDID presente mas 0 modes no DRM).
-  # Solução: após o GDM iniciar, verificar se há monitores NVIDIA conectados
-  # mas desabilitados. Se sim, recarregar toda a stack NVIDIA e reiniciar o GDM.
-  # É necessário recarregar nvidia + nvidia-modeset + nvidia-drm (não apenas
-  # nvidia-drm) para que o NVKMS re-enumere os displays corretamente.
-  #
-  # Problema 2: após bloqueio de tela, a GPU NVIDIA entra em D3 (runtime suspend)
-  # e os monitores do dock USB-C perdem sinal (DP Alt Mode perde a conexão).
-  # Solução: desabilitar D3 runtime suspend APÓS os monitores serem detectados.
-  # Não pode ser feito via udev no boot pois impede a negociação DP Alt Mode.
-
-  # Script de verificação e reload da stack NVIDIA
+  # --- NVIDIA DRM reload service (for USB-C dock displays) ---
   cat > /usr/local/bin/nvidia-drm-reload-check.sh << 'NVRELOAD'
 #!/bin/bash
-# Find which DRM card is NVIDIA
 NVIDIA_CARD=""
 for card in /sys/class/drm/card[0-9]; do
-    drv="$(readlink "$card/device/driver" 2>/dev/null || true)"
-    if echo "$drv" | grep -q nvidia; then
-        NVIDIA_CARD="$(basename "$card")"
+    drv="\$(readlink "\$card/device/driver" 2>/dev/null || true)"
+    if echo "\$drv" | grep -q nvidia; then
+        NVIDIA_CARD="\$(basename "\$card")"
         break
     fi
 done
-[ -z "$NVIDIA_CARD" ] && { echo "No NVIDIA card found."; exit 0; }
-
-# Check if any NVIDIA DP connector is connected but disabled (0 modes)
+[ -z "\$NVIDIA_CARD" ] && { echo "No NVIDIA card found."; exit 0; }
 need_reload=0
-for sf in /sys/class/drm/${NVIDIA_CARD}-DP-*/status; do
-    [ -f "$sf" ] || continue
-    dir="$(dirname "$sf")"
-    if [ "$(cat "$sf" 2>/dev/null)" = "connected" ] && \
-       [ "$(cat "$dir/enabled" 2>/dev/null)" = "disabled" ]; then
+for sf in /sys/class/drm/\${NVIDIA_CARD}-DP-*/status; do
+    [ -f "\$sf" ] || continue
+    dir="\$(dirname "\$sf")"
+    if [ "\$(cat "\$sf" 2>/dev/null)" = "connected" ] && \
+       [ "\$(cat "\$dir/enabled" 2>/dev/null)" = "disabled" ]; then
         need_reload=1; break
     fi
 done
-[ "$need_reload" = "0" ] && { echo "All NVIDIA monitors OK."; exit 0; }
-
+[ "\$need_reload" = "0" ] && { echo "All NVIDIA monitors OK."; exit 0; }
 echo "NVIDIA monitors connected but disabled. Full stack reload..."
 systemctl stop gdm || true
 sleep 1
@@ -413,7 +383,7 @@ Wants=graphical.target
 [Service]
 Type=oneshot
 ExecStartPre=/bin/sleep 15
-ExecStart=/bin/sh -c 'for dev in /sys/bus/pci/devices/*/; do if [ -f "$dev/vendor" ] && [ "$(cat "$dev/vendor")" = "0x10de" ] && [ -f "$dev/class" ] && echo "$(cat "$dev/class")" | grep -q "^0x03"; then echo on > "$dev/power/control"; fi; done'
+ExecStart=/bin/sh -c 'for dev in /sys/bus/pci/devices/*/; do if [ -f "\$dev/vendor" ] && [ "\$(cat "\$dev/vendor")" = "0x10de" ] && [ -f "\$dev/class" ] && echo "\$(cat "\$dev/class")" | grep -q "^0x03"; then echo on > "\$dev/power/control"; fi; done'
 RemainAfterExit=yes
 
 [Install]
@@ -421,89 +391,32 @@ WantedBy=graphical.target
 NVD3OFF
   systemctl enable nvidia-disable-d3.service
 
-  echo "[INFO] Serviços nvidia-drm-reload e nvidia-disable-d3 configurados"
-
-  if [ "$HAS_HYBRID" -eq 1 ]; then
-    # PRIME render offload: força uso da GPU NVIDIA para renderização
-    # Necessário para monitores externos conectados via GPU NVIDIA em laptops híbridos
+  if [ "\$HAS_HYBRID" -eq 1 ]; then
     grep -qxF '__NV_PRIME_RENDER_OFFLOAD=1' /etc/environment 2>/dev/null || echo '__NV_PRIME_RENDER_OFFLOAD=1' >> /etc/environment
     grep -qxF '__GLX_VENDOR_LIBRARY_NAME=nvidia' /etc/environment 2>/dev/null || echo '__GLX_VENDOR_LIBRARY_NAME=nvidia' >> /etc/environment
 
-    # Regra udev: define GPU NVIDIA como primária para o Mutter (GNOME Wayland)
-    # Sem isso, o Mutter usa a Intel iGPU e ignora monitores conectados via NVIDIA
     cat > /etc/udev/rules.d/61-mutter-primary-gpu.rules << 'UDEVRULE'
-# Make NVIDIA GPU the preferred primary GPU for Mutter
-# Required for external monitors connected via NVIDIA outputs (dock USB-C/HDMI)
 SUBSYSTEM=="drm", KERNEL=="card[0-9]", DRIVERS=="nvidia", TAG+="mutter-device-preferred-primary"
 UDEVRULE
-
-    # Script para corrigir refresh rates mistos entre eDP e monitores externos
-    # Previne crash de apps Wayland ("Error 71 protocol error") ao mover janelas
-    # entre monitores com refresh rates muito diferentes (ex: 240Hz vs 60Hz)
-    cat > /usr/local/bin/fix-monitor-refresh-rates << 'FIXRR'
-#!/usr/bin/env python3
-"""Fix mixed refresh rates in GNOME monitors.xml to prevent Wayland protocol errors.
-On hybrid NVIDIA laptops, having the internal eDP panel at 240Hz while external
-monitors run at 60Hz causes 'Error 71 (Protocol error) dispatching to Wayland display'
-when moving or maximizing windows across monitors.
-This script caps the eDP refresh rate to ~60Hz only in configurations that also
-include external monitors running at lower rates."""
-import re, os, sys, shutil
-
-path = os.path.expanduser("~/.config/monitors.xml")
-if not os.path.exists(path):
-    sys.exit(0)
-
-with open(path) as f:
-    content = f.read()
-
-original = content
-for config_m in re.finditer(r"<configuration>.*?</configuration>", content, re.DOTALL):
-    config = config_m.group()
-    edp_high = []
-    has_ext_low = False
-    for mon_m in re.finditer(r"<monitor>.*?</monitor>", config, re.DOTALL):
-        mon = mon_m.group()
-        conn_m = re.search(r"<connector>([^<]+)</connector>", mon)
-        rate_m = re.search(r"<rate>([^<]+)</rate>", mon)
-        if not conn_m or not rate_m:
-            continue
-        conn = conn_m.group(1)
-        try:
-            rate = float(rate_m.group(1))
-        except (ValueError, TypeError):
-            continue
-        if conn.startswith("eDP") and rate > 120:
-            edp_high.append((mon, rate_m.group(0)))
-        elif not conn.startswith("eDP") and rate < 120:
-            has_ext_low = True
-    if has_ext_low and edp_high:
-        for mon_text, old_rate_tag in edp_high:
-            new_mon = mon_text.replace(old_rate_tag, "<rate>59.954</rate>")
-            content = content.replace(mon_text, new_mon, 1)
-
-if content != original:
-    shutil.copy2(path, path + ".bak")
-    with open(path, "w") as f:
-        f.write(content)
-FIXRR
-    chmod +x /usr/local/bin/fix-monitor-refresh-rates
   fi
+
+  echo "[INFO] NVIDIA configurado."
 fi
 
-# Chrome
-wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/chrome.deb
-apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" /tmp/chrome.deb
-rm /tmp/chrome.deb
+# --- Usuários ---
+echo "[INFO] Configurando usuários..."
+# Remove live user if exists
+userdel -r user 2>/dev/null || true
 
-# Usuários
 echo "root:$ROOT_PASS" | chpasswd
-useradd -m -G sudo,video,render,plugdev,netdev -s /bin/bash $USER_NAME
+if ! id "$USER_NAME" &>/dev/null; then
+  useradd -m -G sudo,video,render,plugdev,netdev -s /bin/bash "$USER_NAME"
+fi
 echo "$USER_NAME:$USER_PASS" | chpasswd
 echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER_NAME
 chmod 0440 /etc/sudoers.d/$USER_NAME
 
-# Autostart: corrige refresh rates mistos no login do GNOME (previne crash Wayland)
+# --- Autostart: fix-monitor-refresh-rates ---
 if [ -f /usr/local/bin/fix-monitor-refresh-rates ]; then
   mkdir -p /home/$USER_NAME/.config/autostart
   cat > /home/$USER_NAME/.config/autostart/fix-monitor-refresh-rates.desktop << 'FIXRRDESKTOP'
@@ -514,10 +427,10 @@ Exec=/usr/local/bin/fix-monitor-refresh-rates
 X-GNOME-Autostart-Phase=Applications
 X-GNOME-Autostart-enabled=true
 FIXRRDESKTOP
-  chown -R $USER_NAME:$USER_NAME /home/$USER_NAME/.config/autostart
+  chown -R $USER_NAME:$USER_NAME /home/$USER_NAME/.config
 fi
 
-# WiFi
+# --- WiFi ---
 mkdir -p /etc/NetworkManager/system-connections
 cat <<NET > /etc/NetworkManager/system-connections/pre-config-wifi.nmconnection
 [connection]
@@ -539,154 +452,62 @@ method=auto
 NET
 chmod 600 /etc/NetworkManager/system-connections/pre-config-wifi.nmconnection
 
-# Configs Extras (Vim/Snap/Flatpak)
-systemctl enable snapd
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
-cat <<VIM >> /etc/vim/vimrc
-syntax on
-set ignorecase
-if has("autocmd")
-  au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
-endif
-VIM
+# --- Claude Code (per-user) ---
+echo "[INFO] Instalando Claude Code..."
+su - $USER_NAME -c "curl -fsSL https://claude.ai/install.sh | bash" || true
 
-# Tema Escuro
-mkdir -p /etc/dconf/profile
-echo "user-db:user" > /etc/dconf/profile/user
-echo "system-db:local" >> /etc/dconf/profile/user
-mkdir -p /etc/dconf/db/local.d
-cat <<DCONF > /etc/dconf/db/local.d/01-dark-theme
-[org/gnome/desktop/interface]
-color-scheme='prefer-dark'
-gtk-theme='Adwaita-dark'
-[org/gnome/desktop/input-sources]
-sources=[('xkb', 'br')]
-[org/gnome/shell]
-enabled-extensions=['alt-tab-current-monitor@esauvisky.github.io']
-[org/gnome/shell/extensions/alt-tab-current-monitor]
-use-mouse-pointer-monitor=false
-DCONF
-dconf update
+# --- Remove installer GUI from installed system ---
+rm -f /usr/share/applications/koder-linux-installer-gui.desktop
+rm -f /usr/local/bin/koder-linux-installer-gui
+rm -f /usr/share/polkit-1/actions/com.koder.installer.policy
 
-# --- Esquema de Cores TTY: Ocean Blue ---
-echo "[INFO] Configurando esquema de cores Ocean Blue para TTYs..."
-cat > /usr/local/bin/set-ocean-blue-tty.sh << 'OCEANTTY'
-#!/bin/bash
-# Ocean Blue - Esquema de cores para console TTY
-for tty_dev in /dev/tty{1..6}; do
-    if [ -e "\$tty_dev" ]; then
-        printf '\033]P00b1c2c' > "\$tty_dev"
-        printf '\033]P1c74b50' > "\$tty_dev"
-        printf '\033]P22e9e6e' > "\$tty_dev"
-        printf '\033]P3d4a856' > "\$tty_dev"
-        printf '\033]P42e6bb5' > "\$tty_dev"
-        printf '\033]P58f5a9e' > "\$tty_dev"
-        printf '\033]P63ca5a5' > "\$tty_dev"
-        printf '\033]P7a8c4d8' > "\$tty_dev"
-        printf '\033]P81e3a5f' > "\$tty_dev"
-        printf '\033]P9e87478' > "\$tty_dev"
-        printf '\033]PA5ec49e' > "\$tty_dev"
-        printf '\033]PBf0c674' > "\$tty_dev"
-        printf '\033]PC5c9fd7' > "\$tty_dev"
-        printf '\033]PDb88bc6' > "\$tty_dev"
-        printf '\033]PE6ecfcf' > "\$tty_dev"
-        printf '\033]PFdce8f0' > "\$tty_dev"
-    fi
-done
-OCEANTTY
-chmod +x /usr/local/bin/set-ocean-blue-tty.sh
+# Update favorites (remove installer)
+if command -v glib-compile-schemas > /dev/null 2>&1; then
+  # Rewrite override without installer entry
+  OVERRIDE="/usr/share/glib-2.0/schemas/90_koder-linux.gschema.override"
+  if [ -f "\$OVERRIDE" ]; then
+    sed -i "s/'koder-linux-installer-gui.desktop', //" "\$OVERRIDE"
+    glib-compile-schemas /usr/share/glib-2.0/schemas || true
+  fi
+fi
 
-cat > /etc/systemd/system/ocean-blue-tty.service << 'OCEANSERVICE'
-[Unit]
-Description=Apply Ocean Blue color scheme to TTY consoles
-After=systemd-vconsole-setup.service
-DefaultDependencies=no
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/set-ocean-blue-tty.sh
-RemainAfterExit=yes
-
-[Install]
-WantedBy=sysinit.target
-OCEANSERVICE
-systemctl enable ocean-blue-tty.service
-
-# --- GRUB INSTALL ---
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=DEBIAN --recheck
+# --- GRUB ---
+echo "[INFO] Instalando GRUB..."
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=KODER --recheck
 sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="quiet"/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash nvidia-drm.modeset=1 nvidia-drm.fbdev=1"/g' /etc/default/grub
 update-grub
 update-initramfs -u
 
+# --- Enable essential services ---
 systemctl enable NetworkManager
 systemctl enable gdm3
 
-# ==============================================================================
-# FERRAMENTAS DE IA (CLI)
-# ==============================================================================
+# --- Cleanup ---
+apt-get clean
+rm -rf /var/lib/apt/lists/*
 
-# --- Dependência: Node.js 22 LTS (necessário para Gemini CLI, OpenAI Codex, Kilo Code e Cline) ---
-echo "[INFO] Instalando Node.js 22 LTS..."
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" nodejs
-
-# --- Crush AI (Charmbracelet) via repositório apt ---
-echo "[INFO] Instalando Crush AI..."
-mkdir -p /etc/apt/keyrings
-curl -fsSL https://repo.charm.sh/apt/gpg.key | gpg --dearmor -o /etc/apt/keyrings/charm.gpg
-echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" > /etc/apt/sources.list.d/charm.list
-apt-get update
-apt-get install -y crush
-
-# --- Gemini CLI, OpenAI Codex, Kilo Code CLI e Cline AI via npm ---
-echo "[INFO] Instalando Gemini CLI, OpenAI Codex, Kilo Code e Cline..."
-npm install -g @google/gemini-cli @openai/codex @kilocode/cli cline
-
-# --- Claude Code (instalador nativo - instalado como usuário) ---
-echo "[INFO] Instalando Claude Code..."
-su - $USER_NAME -c "curl -fsSL https://claude.ai/install.sh | bash"
-
-# ==============================================================================
-# EXTENSÃO GNOME: Alt-Tab Current Monitor
-# ==============================================================================
-# Faz o Alt+Tab alternar apenas entre janelas do monitor onde está a janela
-# focada (não onde está o ponteiro do mouse).
-echo "[INFO] Instalando extensão Alt-Tab Current Monitor..."
-git clone https://github.com/esauvisky/alt-tab-current-monitor.git /tmp/alt-tab-ext
-cd /tmp/alt-tab-ext
-npm install
-npx tsc
-glib-compile-schemas schemas
-mkdir -p dist
-cp -r schemas dist/
-cp metadata.json dist/
-
-EXTENSION_DIR="/home/$USER_NAME/.local/share/gnome-shell/extensions/alt-tab-current-monitor@esauvisky.github.io"
-mkdir -p "\$EXTENSION_DIR"
-cp -r dist/* "\$EXTENSION_DIR/"
-chown -R $USER_NAME:$USER_NAME "/home/$USER_NAME/.local/share/gnome-shell"
-
-# Schema global para dconf system-wide
-cp schemas/org.gnome.shell.extensions.alt-tab-current-monitor.gschema.xml /usr/share/glib-2.0/schemas/
-glib-compile-schemas /usr/share/glib-2.0/schemas/
-dconf update
-
-cd /
-rm -rf /tmp/alt-tab-ext
-EOF
+echo "[INFO] Configuração interna concluída."
+CHROOT_SCRIPT
 
 chmod +x /mnt/setup_internal.sh
 
-log "Executando Chroot..."
+# ==============================================================================
+# PASSO 5: CHROOT E EXECUÇÃO
+# ==============================================================================
+log "Executando configuração no chroot..."
 mount --bind /dev /mnt/dev
 mount --bind /dev/pts /mnt/dev/pts
 mount --bind /proc /mnt/proc
 mount --bind /sys /mnt/sys
-mount --bind /sys/firmware/efi/efivars /mnt/sys/firmware/efi/efivars
+if [ -d /sys/firmware/efi/efivars ]; then
+  mount --bind /sys/firmware/efi/efivars /mnt/sys/firmware/efi/efivars
+fi
 
 chroot /mnt /setup_internal.sh
 
 log "Limpando..."
-rm /mnt/setup_internal.sh
+rm -f /mnt/setup_internal.sh
+rm -f /mnt/usr/local/bin/koder-linux-installer
+
 umount -R /mnt
 log "Instalação Finalizada!"
