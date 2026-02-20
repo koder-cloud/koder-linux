@@ -63,8 +63,7 @@ setupcon || true
 echo "Enabling services..."
 systemctl enable ocean-blue-tty.service || true
 systemctl enable snapd || true
-systemctl disable ssh.service || true
-systemctl disable sshd.service || true
+systemctl enable ssh.service || true
 
 # --- Flatpak + Flathub ---
 echo "Configuring Flatpak..."
