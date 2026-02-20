@@ -5,9 +5,13 @@ LIVE_USERNAME="${LIVE_USERNAME:-user}"
 AVATAR="/var/lib/AccountsService/icons/koder-avatar.png"
 
 if [ ! -f "$AVATAR" ]; then
-    # Generate avatar from SVG if not present
-    if command -v rsvg-convert > /dev/null 2>&1; then
-        rsvg-convert /usr/share/koder-linux/koder_icon.svg -w 96 -h 96 -o "$AVATAR" 2>/dev/null || true
+    # Generate avatar from SVG: render icon at 64px centered on 96px transparent canvas
+    if command -v rsvg-convert > /dev/null 2>&1 && command -v convert > /dev/null 2>&1; then
+        rsvg-convert /usr/share/koder-linux/koder_icon.svg -w 64 -h 64 -o /tmp/koder-avatar-small.png 2>/dev/null
+        convert /tmp/koder-avatar-small.png -gravity center -background none -extent 96x96 "$AVATAR" 2>/dev/null || true
+        rm -f /tmp/koder-avatar-small.png
+    elif command -v rsvg-convert > /dev/null 2>&1; then
+        rsvg-convert /usr/share/koder-linux/koder_icon.svg -w 64 -h 64 -o "$AVATAR" 2>/dev/null || true
     fi
 fi
 
