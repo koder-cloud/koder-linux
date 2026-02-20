@@ -1,0 +1,20 @@
+#!/bin/sh
+# Set Koder icon as user avatar on GDM login screen
+
+LIVE_USERNAME="${LIVE_USERNAME:-user}"
+AVATAR="/var/lib/AccountsService/icons/koder-avatar.png"
+
+if [ ! -f "$AVATAR" ]; then
+    # Generate avatar from SVG if not present
+    if command -v rsvg-convert > /dev/null 2>&1; then
+        rsvg-convert /usr/share/koder-linux/koder_icon.svg -w 96 -h 96 -o "$AVATAR" 2>/dev/null || true
+    fi
+fi
+
+if [ -f "$AVATAR" ]; then
+    mkdir -p /var/lib/AccountsService/users
+    cat > "/var/lib/AccountsService/users/${LIVE_USERNAME}" << EOF
+[User]
+Icon=${AVATAR}
+EOF
+fi

@@ -414,6 +414,13 @@ echo "$USER_NAME:$USER_PASS" | chpasswd
 echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER_NAME
 chmod 0440 /etc/sudoers.d/$USER_NAME
 
+# --- User avatar (Koder icon) ---
+mkdir -p /var/lib/AccountsService/users
+cat > /var/lib/AccountsService/users/$USER_NAME << 'AVATAR'
+[User]
+Icon=/var/lib/AccountsService/icons/koder-avatar.png
+AVATAR
+
 # --- Autostart: fix-monitor-refresh-rates ---
 if [ -f /usr/local/bin/fix-monitor-refresh-rates ]; then
   mkdir -p /home/$USER_NAME/.config/autostart

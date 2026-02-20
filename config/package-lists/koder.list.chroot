@@ -5,6 +5,7 @@ gnome-terminal
 gnome-shell-extensions
 gnome-shell-extension-manager
 dconf-editor
+arandr
 
 # Boot & firmware
 linux-headers-amd64
@@ -13,6 +14,7 @@ shim-signed
 firmware-linux
 firmware-iwlwifi
 firmware-realtek
+firmware-nvidia-gsp
 intel-microcode
 plymouth
 plymouth-themes
@@ -41,12 +43,50 @@ neovim
 # Graphics
 gimp
 
+# Multimedia
+ffmpeg
+
+# Terminal tools
+tmux
+screen
+jq
+zip
+unzip
+7zip
+
+# System monitoring
+htop
+iotop
+
 # Networking
 wireguard
 net-tools
 dnsutils
 nmap
-htop
+openssh-server
+openssh-client
+
+# Build tools
+build-essential
+cmake
+make
+autoconf
+automake
+clang
+pipx
+
+# Containers & virtualization
+docker.io
+podman
+buildah
+qemu-system-x86
+
+# Servers & infrastructure
+cockpit
+caddy
+
+# GitHub CLI
+gh
 
 # App stores
 flatpak
