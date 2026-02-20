@@ -1,0 +1,4 @@
+src/kterm-window.c
+src/kterm-preferences.c
+src/kterm-terminal.c
+src/kterm-explorer.c

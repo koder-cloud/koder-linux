@@ -1,0 +1,44 @@
+#!/bin/sh
+
+. /usr/lib/live/config.sh
+
+## Place installer shortcut on user's Desktop
+
+Init ()
+{
+	if component_was_executed "installer-desktop"
+	then
+		exit 0
+	fi
+
+	echo -n " installer-desktop"
+}
+
+Config ()
+{
+	LIVE_USERNAME="${LIVE_USERNAME:-koder}"
+	HOME_DIR="/home/${LIVE_USERNAME}"
+
+	# Get Desktop dir from xdg or use locale-appropriate default
+	DESKTOP_DIR="${HOME_DIR}/Desktop"
+	if [ -f "${HOME_DIR}/.config/user-dirs.dirs" ]; then
+		. "${HOME_DIR}/.config/user-dirs.dirs"
+		DESKTOP_DIR="${XDG_DESKTOP_DIR:-${HOME_DIR}/Desktop}"
+	fi
+
+	mkdir -p "$DESKTOP_DIR"
+	cp /usr/share/applications/koder-linux-installer-gui.desktop "$DESKTOP_DIR/"
+	chmod +x "$DESKTOP_DIR/koder-linux-installer-gui.desktop"
+	chown -R "${LIVE_USERNAME}:${LIVE_USERNAME}" "$HOME_DIR"
+
+	# Mark as trusted so GNOME doesn't show "untrusted" warning
+	if command -v gio > /dev/null 2>&1; then
+		su - "$LIVE_USERNAME" -c "gio set '$DESKTOP_DIR/koder-linux-installer-gui.desktop' metadata::trusted true" 2>/dev/null || true
+	fi
+
+	# Creating state file
+	touch /var/lib/live/config/installer-desktop
+}
+
+Init
+Config

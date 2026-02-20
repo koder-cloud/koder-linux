@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.koder.kterm</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Kterm</name>
+  <summary>A tiling terminal emulator for GNOME</summary>
+  <description>
+    <p>
+      Kterm is a terminal emulator for GNOME that supports unlimited recursive
+      pane splitting (both horizontal and vertical), independent tabs, and
+      spatial navigation between panes.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.koder.kterm.desktop</launchable>
+  <url type="homepage">https://github.com/koder</url>
+  <provides>
+    <binary>kterm</binary>
+  </provides>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2026-02-09">
+      <description>
+        <p>Initial release with tiling support, tabs, and keyboard navigation.</p>
+      </description>
+    </release>
+  </releases>
+</component>

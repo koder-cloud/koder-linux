@@ -1,0 +1,236 @@
+# Brazilian Portuguese translation for kterm
+# Copyright (C) 2024 kterm contributors
+# This file is distributed under the same license as the kterm package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: kterm 0.2.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"PO-Revision-Date: 2024-01-01 00:00+0000\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: src/kterm-terminal.c
+#: src/kterm-window.c
+msgid "Terminal"
+msgstr "Terminal"
+
+#: src/kterm-window.c
+msgid "New Tab"
+msgstr "Nova aba"
+
+#: src/kterm-window.c
+msgid "Split |"
+msgstr "Dividir |"
+
+#: src/kterm-window.c
+msgid "Split -"
+msgstr "Dividir -"
+
+#: src/kterm-window.c
+msgid "Split | [Files]"
+msgstr "Dividir | [Arquivos]"
+
+#: src/kterm-window.c
+msgid "Split - [Files]"
+msgstr "Dividir - [Arquivos]"
+
+#: src/kterm-window.c
+msgid "Close Terminal"
+msgstr "Fechar terminal"
+
+#: src/kterm-window.c
+msgid "Edit Title…"
+msgstr "Editar título…"
+
+#: src/kterm-window.c
+msgid "Copy"
+msgstr "Copiar"
+
+#: src/kterm-window.c
+msgid "Paste"
+msgstr "Colar"
+
+#: src/kterm-window.c
+msgid "Paste + ENTER"
+msgstr "Colar + ENTER"
+
+#: src/kterm-window.c
+msgid "Open File Manager"
+msgstr "Abrir gerenciador de arquivos"
+
+#: src/kterm-window.c
+msgid "Preferences…"
+msgstr "Preferências…"
+
+#: src/kterm-window.c
+msgid "Edit Title"
+msgstr "Editar título"
+
+#: src/kterm-window.c
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: src/kterm-window.c
+msgid "OK"
+msgstr "OK"
+
+#: src/kterm-preferences.c
+msgid "Preferences"
+msgstr "Preferências"
+
+#: src/kterm-preferences.c
+msgid "General"
+msgstr "Geral"
+
+#: src/kterm-preferences.c
+msgid "Font"
+msgstr "Fonte"
+
+#: src/kterm-preferences.c
+msgid "Colors"
+msgstr "Cores"
+
+#: src/kterm-preferences.c
+msgid "Cursor"
+msgstr "Cursor"
+
+#: src/kterm-preferences.c
+msgid "Scrollback lines"
+msgstr "Linhas de rolagem"
+
+#: src/kterm-preferences.c
+msgid "Unlimited scrollback"
+msgstr "Rolagem ilimitada"
+
+#: src/kterm-preferences.c
+msgid "Audible bell"
+msgstr "Sinal sonoro"
+
+#: src/kterm-preferences.c
+msgid "Pane border (px)"
+msgstr "Borda do painel (px)"
+
+#: src/kterm-preferences.c
+msgid "Terminal font"
+msgstr "Fonte do terminal"
+
+#: src/kterm-preferences.c
+msgid "Theme presets"
+msgstr "Temas predefinidos"
+
+#: src/kterm-preferences.c
+msgid "Dark"
+msgstr "Escuros"
+
+#: src/kterm-preferences.c
+msgid "Light"
+msgstr "Claros"
+
+#: src/kterm-preferences.c
+msgid "Foreground"
+msgstr "Primeiro plano"
+
+#: src/kterm-preferences.c
+msgid "Background"
+msgstr "Plano de fundo"
+
+#: src/kterm-preferences.c
+msgid "Cursor shape"
+msgstr "Forma do cursor"
+
+#: src/kterm-preferences.c
+msgid "Block"
+msgstr "Bloco"
+
+#: src/kterm-preferences.c
+msgid "I-Beam"
+msgstr "Barra vertical"
+
+#: src/kterm-preferences.c
+msgid "Underline"
+msgstr "Sublinhado"
+
+#: src/kterm-preferences.c
+msgid "Cursor blink"
+msgstr "Piscar do cursor"
+
+#: src/kterm-preferences.c
+msgid "System"
+msgstr "Sistema"
+
+#: src/kterm-preferences.c
+msgid "On"
+msgstr "Ligado"
+
+#: src/kterm-preferences.c
+msgid "Off"
+msgstr "Desligado"
+
+#: src/kterm-preferences.c
+msgid "Defaults"
+msgstr "Padrão"
+
+#: src/kterm-preferences.c
+msgid "Apply"
+msgstr "Aplicar"
+
+#: src/kterm-explorer.c
+msgid "Folders"
+msgstr "Pastas"
+
+#: src/kterm-explorer.c
+msgid "Parent directory"
+msgstr "Diretório pai"
+
+#: src/kterm-explorer.c
+msgid "Home"
+msgstr "Início"
+
+#: src/kterm-explorer.c
+msgid "Trash"
+msgstr "Lixeira"
+
+#: src/kterm-explorer.c
+msgid "Computer"
+msgstr "Computador"
+
+#: src/kterm-explorer.c
+msgid "Sort"
+msgstr "Ordenar"
+
+#: src/kterm-explorer.c
+msgid "Close"
+msgstr "Fechar"
+
+#: src/kterm-explorer.c
+msgid "Name"
+msgstr "Nome"
+
+#: src/kterm-explorer.c
+msgid "Size"
+msgstr "Tamanho"
+
+#: src/kterm-explorer.c
+msgid "Last Modified"
+msgstr "Última modificação"
+
+#: src/kterm-explorer.c
+msgid "Type"
+msgstr "Tipo"
+
+#: src/kterm-explorer.c
+msgid "Reversed"
+msgstr "Invertida"
+
+#: src/kterm-explorer.c
+msgid "Icon Size"
+msgstr "Tamanho do ícone"
+
+#: src/kterm-explorer.c
+msgid "Show Hidden Files"
+msgstr "Exibir arquivos ocultos"

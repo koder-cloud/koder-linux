@@ -74,6 +74,16 @@ autoconf
 automake
 clang
 pipx
+meson
+ninja-build
+
+# koder-native (kterm) build dependencies
+libgtk-4-dev
+libvte-2.91-gtk4-dev
+libgnome-desktop-4-dev
+libjson-glib-dev
+libwebkitgtk-6.0-dev
+gettext
 
 # Containers & virtualization
 docker.io
