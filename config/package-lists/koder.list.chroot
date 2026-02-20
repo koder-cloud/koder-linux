@@ -21,6 +21,9 @@ git
 librsvg2-bin
 imagemagick
 
+# Editors
+vim
+
 # Graphics
 gimp
 
