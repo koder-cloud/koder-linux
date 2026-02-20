@@ -47,8 +47,6 @@ USER_NAME="rodrigo"
 USER_PASS="koder"
 ROOT_PASS="koder"
 HOSTNAME="note"
-WIFI_SSID="crescer.diretoria"
-WIFI_PASS="c.wifi.senha"
 
 # Live filesystem source
 LIVE_ROOTFS=""
@@ -429,28 +427,6 @@ X-GNOME-Autostart-enabled=true
 FIXRRDESKTOP
   chown -R $USER_NAME:$USER_NAME /home/$USER_NAME/.config
 fi
-
-# --- WiFi ---
-mkdir -p /etc/NetworkManager/system-connections
-cat <<NET > /etc/NetworkManager/system-connections/pre-config-wifi.nmconnection
-[connection]
-id=$WIFI_SSID
-uuid=\$(cat /proc/sys/kernel/random/uuid)
-type=wifi
-interface-name=wlan0
-[wifi]
-mode=infrastructure
-ssid=$WIFI_SSID
-[wifi-security]
-auth-alg=open
-key-mgmt=wpa-psk
-psk=$WIFI_PASS
-[ipv4]
-method=auto
-[ipv6]
-method=auto
-NET
-chmod 600 /etc/NetworkManager/system-connections/pre-config-wifi.nmconnection
 
 # --- Claude Code (per-user) ---
 echo "[INFO] Instalando Claude Code..."
