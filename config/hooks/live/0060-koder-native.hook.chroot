@@ -1,16 +1,9 @@
 #!/bin/sh
 set -e
 
-echo "Building koder-native (kterm)..."
+echo "Installing koder-native..."
 
-cd /usr/src/koder-native
-
-# Build with meson
-meson setup build --prefix=/usr
-meson compile -C build
-meson install -C build
-
-# Clean up source
-rm -rf /usr/src/koder-native
+# Create symlink to the pre-built Flutter binary
+ln -sf /opt/koder-native/koder /usr/local/bin/koder-native
 
 echo "koder-native installed."

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Koder Native
+Comment=Desktop client with tiling terminal, SSH, RDP, VNC, file explorer
+Exec=koder-native
+Icon=/usr/share/koder-linux/koder_icon.svg
+Terminal=false
+Type=Application
+Categories=System;TerminalEmulator;
+Keywords=terminal;ssh;rdp;vnc;tiling;
+StartupNotify=true
