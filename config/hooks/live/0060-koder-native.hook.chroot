@@ -3,7 +3,7 @@ set -e
 
 echo "Building koder-native (kterm)..."
 
-cd /tmp/koder-native-src
+cd /usr/src/koder-native
 
 # Build with meson
 meson setup build --prefix=/usr
@@ -11,6 +11,6 @@ meson compile -C build
 meson install -C build
 
 # Clean up source
-rm -rf /tmp/koder-native-src
+rm -rf /usr/src/koder-native
 
 echo "koder-native installed."

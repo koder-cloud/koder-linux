@@ -28,3 +28,4 @@ koder-linux-amd64.packages
 /config/hooks/live/0050-disable-sysvinit-tmpfs.hook.chroot
 /config/hooks/normal/
 /config/package-lists/live.list.chroot
+koder-linux-amd64.hybrid.iso*
