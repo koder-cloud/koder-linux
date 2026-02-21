@@ -18,6 +18,7 @@ class InstallerWindow(Adw.ApplicationWindow):
         super().__init__(**kwargs, default_width=700, default_height=550)
         self.process = None
         self.root_password = None
+        self._pulse_id = None
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT)
         self.set_content(self.stack)
         self._build_welcome_page()
@@ -43,9 +44,15 @@ class InstallerWindow(Adw.ApplicationWindow):
         title.add_css_class("title-1")
         box.append(title)
 
-        subtitle = Gtk.Label(label="O Koder Linux sera instalado no disco.")
+        subtitle = Gtk.Label(label="O Koder Linux será instalado no disco.")
         subtitle.add_css_class("dim-label")
         box.append(subtitle)
+
+        warning = Gtk.Label(
+            label="Todos os dados nos discos serão apagados!",
+        )
+        warning.add_css_class("error")
+        box.append(warning)
 
         btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
                           halign=Gtk.Align.CENTER)
@@ -71,7 +78,7 @@ class InstallerWindow(Adw.ApplicationWindow):
         box.set_margin_top(24)
         box.set_margin_bottom(24)
 
-        header = Gtk.Label(label="Instalacao em progresso...")
+        header = Gtk.Label(label="Instalação em progresso...")
         header.add_css_class("title-2")
         box.append(header)
 
@@ -120,9 +127,9 @@ class InstallerWindow(Adw.ApplicationWindow):
         root_box.set_margin_end(16)
 
         warn_label = Gtk.Label(
-            label="ATENCAO: Uma senha foi gerada automaticamente para o\n"
-                  "usuario root. Anote-a em um local seguro!\n"
-                  "Esta e a unica vez que ela sera exibida.")
+            label="ATENÇÃO: Uma senha foi gerada automaticamente para o\n"
+                  "usuário root. Anote-a em um local seguro!\n"
+                  "Esta é a única vez que ela será exibida.")
         warn_label.add_css_class("warning")
         warn_label.set_wrap(True)
         warn_label.set_justify(Gtk.Justification.CENTER)
@@ -237,15 +244,16 @@ class InstallerWindow(Adw.ApplicationWindow):
         GLib.idle_add(self._show_done, rc)
 
     def _show_done(self, return_code):
-        if hasattr(self, "_pulse_id"):
+        if self._pulse_id is not None:
             GLib.source_remove(self._pulse_id)
+            self._pulse_id = None
         self.progress_bar.set_fraction(1.0)
 
         if return_code == 0:
             self.done_icon.set_from_icon_name("emblem-ok-symbolic")
-            self.done_label.set_text("Instalacao concluida!")
+            self.done_label.set_text("Instalação concluída!")
             self.done_sublabel.set_text("Reinicie para usar o Koder Linux.")
-            self.user_info_label.set_text("Usuario: koder  |  Senha: koder@123")
+            self.user_info_label.set_text("Usuário: koder  |  Senha: koder@123")
             self.done_btn.set_label("Reiniciar")
             self.done_btn.connect("clicked", self._on_reboot)
 
@@ -254,8 +262,8 @@ class InstallerWindow(Adw.ApplicationWindow):
                 self.root_frame.set_visible(True)
         else:
             self.done_icon.set_from_icon_name("dialog-error-symbolic")
-            self.done_label.set_text("Falha na instalacao")
-            self.done_sublabel.set_text(f"O instalador terminou com codigo {return_code}.")
+            self.done_label.set_text("Falha na instalação")
+            self.done_sublabel.set_text(f"O instalador terminou com código {return_code}.")
             self.done_btn.set_label("Fechar")
             self.done_btn.connect("clicked", lambda _: self.close())
 
@@ -274,12 +282,10 @@ class InstallerWindow(Adw.ApplicationWindow):
             self._show_pass_status("Digite a nova senha.", error=True)
             return
         if new_pass != confirm:
-            self._show_pass_status("As senhas nao conferem.", error=True)
+            self._show_pass_status("As senhas não conferem.", error=True)
             return
 
-        # Change root password via chroot
         try:
-            # Find the installed root partition
             result = subprocess.run(
                 ["pkexec", "bash", "-c",
                  f"echo 'root:{new_pass}' | chpasswd -R /mnt 2>/dev/null || "

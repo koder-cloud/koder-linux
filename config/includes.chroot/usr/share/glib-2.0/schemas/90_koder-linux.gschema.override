@@ -1,6 +1,6 @@
 [org.gnome.shell]
 welcome-dialog-last-shown-version='99.0'
-favorite-apps=['com.koder.native.desktop', 'org.gnome.Terminal.desktop', 'google-chrome.desktop', 'firefox-esr.desktop', 'code.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Settings.desktop']
+favorite-apps=['koder-linux-installer-gui.desktop', 'com.koder.native.desktop', 'org.gnome.Terminal.desktop', 'google-chrome.desktop', 'firefox-esr.desktop', 'code.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Software.desktop', 'org.gnome.Settings.desktop']
 enabled-extensions=['alt-tab-current-monitor@esauvisky.github.io']
 
 [org.gnome.desktop.interface]
